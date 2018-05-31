@@ -1,7 +1,19 @@
 defmodule Explorer.Factory do
   use ExMachina.Ecto, repo: Explorer.Repo
 
-  alias Explorer.Chain.{Address, Block, Data, Hash, InternalTransaction, Log, Receipt, Transaction}
+  alias Explorer.Chain.Block.{Range, Reward}
+
+  alias Explorer.Chain.{
+    Address,
+    Block,
+    Data,
+    Hash,
+    InternalTransaction,
+    Log,
+    Receipt,
+    Transaction
+  }
+
   alias Explorer.Market.MarketHistory
   alias Explorer.Repo
 
@@ -72,9 +84,17 @@ defmodule Explorer.Factory do
     internal_transaction_factory(type)
   end
 
-  # TODO add call, reward, and suicide
+  def internal_transaction_create_factory do
+    internal_transaction_factory(:create)
+  end
+
+  def internal_transaction_call_factory do
+    internal_transaction_factory(:call)
+  end
+
+  # TODO add reward and suicide
   def internal_transaction_type do
-    Enum.random(~w(create)a)
+    Enum.random(~w(call create)a)
   end
 
   def log_factory do
@@ -100,6 +120,27 @@ defmodule Explorer.Factory do
       closing_price: price(),
       opening_price: price(),
       date: Date.utc_today()
+    }
+  end
+
+  def block_reward_factory do
+    # Generate ranges like 1 - 10,000; 10,001 - 20,000, 20,001 - 30,000; etc
+    x = sequence("block_range", & &1)
+    lower = x * 10_000 + 1
+    upper = lower + 9_999
+
+    wei_per_ether = Decimal.new(1_000_000_000_000_000_000)
+
+    reward_multiplier =
+      1..5
+      |> Enum.random()
+      |> Decimal.new()
+
+    reward = Decimal.mult(reward_multiplier, wei_per_ether)
+
+    %Reward{
+      block_range: %Range{from: lower, to: upper},
+      reward: reward
     }
   end
 
@@ -164,6 +205,29 @@ defmodule Explorer.Factory do
     Repo.preload(block_transaction, [:block, :receipt])
   end
 
+  defp internal_transaction_factory(:call = type) do
+    gas = Enum.random(21_000..100_000)
+    gas_used = Enum.random(0..gas)
+
+    block = insert(:block)
+    transaction = insert(:transaction, block_hash: block.hash, index: 0)
+    receipt = insert(:receipt, transaction_hash: transaction.hash, transaction_index: transaction.index)
+
+    %InternalTransaction{
+      from_address_hash: insert(:address).hash,
+      to_address_hash: insert(:address).hash,
+      call_type: :delegatecall,
+      gas: gas,
+      gas_used: gas_used,
+      output: %Data{bytes: <<1>>},
+      # caller MUST suppy `index`
+      trace_address: [],
+      transaction_hash: receipt.transaction_hash,
+      type: type,
+      value: sequence("internal_transaction_value", &Decimal.new(&1))
+    }
+  end
+
   defp internal_transaction_factory(:create = type) do
     gas = Enum.random(21_000..100_000)
     gas_used = Enum.random(0..gas)
@@ -178,7 +242,6 @@ defmodule Explorer.Factory do
       from_address_hash: insert(:address).hash,
       gas: gas,
       gas_used: gas_used,
-      index: 0,
       # caller MUST suppy `index`
       init: data(:internal_transaction_init),
       trace_address: [],

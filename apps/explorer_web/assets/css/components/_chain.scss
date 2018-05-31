@@ -1,12 +1,11 @@
 .chain {
   @extend %paper;
+  justify-conntent: space-around;
+  align-items: flex-start;
   padding: explorer-size(0) 0;
 
   &__container {
-    flex: 1;
     text-align: center;
-    &--secondary { display: none; }
-    &--tertiary { display: none; }
   }
 
   &__image {
@@ -16,26 +15,35 @@
   }
 
   &__title {
-    @include explorer-typography("caption");
-    &--data { color: explorer-color("blue", "500"); }
+    font-size: 13px;
+    line-height: 24px;
   }
 }
 
+
 .container__stats {
-  @extend %paper;
   display: flex;
-  padding: 15px;
-  width: 100%;
   font-size: 12px;
   text-align: center;
   flex-direction: row;
-  justify-content: space-around;
 
   img {
     display: inline-block;
     height: explorer-size(1);
     margin-bottom: explorer-size(-2);
     text-align: center;
+  }
+
+  svg {
+    height: 30px;
+  }
+
+  path {
+    fill: $primary;
+  }
+
+  .stroke {
+    stroke: $primary;
   }
 }
 
@@ -45,37 +53,19 @@
   display: inline-block;
 
   &--price {
-    background-color: explorer-color("blue", "500");
+    background-color: $primary;
   }
 
   &--mcap {
-    background-color: explorer-color("gray", "500");
-  }
-}
-
-.flex {
-  display: flex;
-  justify-content: space-between;
-}
-
-@media (min-width: $explorer-breakpoint-sm) {
-  .chain {
-    &__image {
-      height: explorer-size(1);
-    }
-
-    &__container {
-      &--secondary { display: block; }
-    }
+    background-color: $secondary;
   }
 }
 
 @media (min-width: $explorer-breakpoint-md) {
 
   .container__stats {
-    width: 18%;
-    flex-direction: column;
-    align-content: space-between;
+    color: $gray-500;
+    width: 16.67%;
 
     img {
       display: inline-block;
@@ -83,11 +73,12 @@
       margin-bottom: explorer-size(-2);
       text-align: center;
     }
-
-    div {
-      flex-grow: 1;
-    }
   }
+
+  .container__graph {
+    flex-grow: 1;
+  }
+
   .chain {
     &__image {
       height: explorer-size(1);
@@ -95,30 +86,6 @@
 
     &__container {
       &--secondary { display: none; }
-    }
-  }
-}
-
-@media (min-width: $explorer-breakpoint-lg) {
-  .chain {
-    &__image {
-      height: explorer-size(1);
-    }
-
-    &__container {
-      &--secondary { display: block; }
-    }
-  }
-}
-
-@media (min-width: $explorer-breakpoint-xl) {
-  .chain {
-    &__image {
-      height: explorer-size(1);
-    }
-
-    &__container {
-      &--tertiary { display: block; }
     }
   }
 }

@@ -1,134 +1,59 @@
-<section>
-  <section class="container__section container__section--partitioned">
-    <div class="container__stats">
-      <div>
-        <img class="chain__image" src="<%= static_path(@conn, "/images/blocks.svg") %>" />
-        <div class="chain__title"><%= gettext("Block") %></div>
-        <div class="chain__title chain__title--data">#<%= @chain.number %></div>
-      </div>
-      <div>
-        <img class="" src="<%= static_path(@conn, "/images/last_block.svg") %>" />
-        <div class="chain__title"><%= gettext("Last Block") %></div>
-        <div class="chain__title chain__title--data"><%= @chain.timestamp |> Timex.from_now() %></div>
-      </div>
-      <div>
-        <img class="" src="<%= static_path(@conn, "/images/average_time.svg") %>" />
-        <div class=""><%= gettext("Avg Block Time") %></div>
-        <%= @chain.average_time |> Timex.format_duration(:humanized) %>
-      </div>
-    </div>
-    <div class="chain container__subsection u-push-sm-left">
-      <canvas data-chart="marketHistoryChart" data-current_exchange_rate ='<%= @exchange_rate.usd_value %>' data-available_supply='<%= @exchange_rate.available_supply %>' data-market_history_data='<%=raw encode_market_history_data(@market_history_data) %>' width="400" height="200"></canvas>
-      <div class="flex">
-        <div class="u-push-md-left">
-          <div class="graph__squares graph__squares--price"></div>
-          <%= gettext "Price" %> </br>
-          $<%= format_exchange_rate(@exchange_rate) %> <%= gettext "USD" %>
+<section class="container-fluid">
+  <div class="d-flex flex-md-row flex-column">
+    <div class="container__stats card mr-sm-4 mb-4 mb-sm-0">
+      <div class="card-body d-flex flex-md-column justify-content-around">
+        <div class="d-flex flex-column justify-content-center align-items-center">
+          <%= render ExplorerWeb.IconsView, "_block_icon.html", assigns %>
+          <div><%= gettext("Block") %></div>
+          <div> #<%= @chain.number %></div>
         </div>
-        <div>
-          <div class="graph__squares graph__squares--mcap"></div>
-          <%= gettext "Market Cap" %> </br>
-          $<%= format_market_cap(@exchange_rate) %> <%= gettext "USD" %>
+        <div class="d-flex flex-column justify-content-center align-items-center">
+          <%= render ExplorerWeb.IconsView, "_hourglass_icon.html", assigns %>
+          <div> <%= gettext("Last Block") %></div>
+          <div> <%= @chain.timestamp |> Timex.from_now() %></div>
         </div>
-        <div class="u-push-md-right">
-          <%= gettext "24h Volume" %> </br>
-          $<%= format_volume_24h(@exchange_rate) %> <%= gettext "USD" %>
+        <div class="d-flex flex-column justify-content-center align-items-center">
+          <div class="stroke"> <%= render ExplorerWeb.IconsView, "_guage_icon.html", assigns %> </div>
+          <div><%= gettext("Avg Block Time") %></div>
+          <%= @chain.average_time |> Timex.format_duration(:humanized) %>
+        </div>
+        <div class="d-flex flex-column justify-content-center align-items-center">
+          <%= render ExplorerWeb.IconsView, "_transaction_icon.html", assigns %>
+          <div> <%= gettext("TPM") %></div>
+          <div> <%= @chain.transaction_velocity |> Cldr.Number.to_string! %></div>
         </div>
       </div>
     </div>
-  </section>
-</section>
 
-<section>
-  <section class="container__section container__section--partitioned">
-    <div class="blocks container__subsection">
-      <div class="blocks__container blocks__container--title">
-        <h2 class="blocks__title"><%= gettext "Blocks" %></h2>
-        <%= link to: block_path(@conn, :index, Gettext.get_locale), class: "header__link" do %>
-          <div class="button button--secondary button--xsmall u-float-right">View All</div>
-        <% end %>
+    <div class="container__graph card">
+      <div class="card-body">
+        <canvas data-chart="marketHistoryChart" data-current_exchange_rate ='<%= @exchange_rate.usd_value %>' data-available_supply='<%= @exchange_rate.available_supply %>' data-market_history_data='<%=raw encode_market_history_data(@market_history_data) %>' width="300" height="100"></canvas>
+        <div class="d-flex justify-content-sm-around mt-2 text-muted">
+          <div>
+            <div class="graph__squares graph__squares--price"></div>
+            <%= gettext "Price" %> </br>
+            <%= format_exchange_rate(@exchange_rate) %>
+          </div>
+          <div class="mx-2">
+            <div class="graph__squares graph__squares--mcap"></div>
+            <%= gettext "Market Cap" %> </br>
+            <%= format_market_cap(@exchange_rate) %>
+          </div>
+          <div>
+            <%= gettext "24h Volume" %> </br>
+            <%= format_volume_24h(@exchange_rate) %>
+          </div>
+        </div>
       </div>
-      <div>
+    </div>
+  </div>
 
-      </div>
-      <div class="blocks__container">
-        <table class="blocks__table">
-          <thead class="blocks__header">
-            <tr>
-              <th class="blocks__column-header"><%= gettext "Height" %></th>
-              <th class="blocks__column-header"><%= gettext "Age" %></th>
-              <th class="blocks__column-header"><%= gettext "Transactions" %></th>
-              <th class="blocks__column-header"><%= gettext "Gas Used" %></th>
-            </tr>
-          </thead>
-          <tbody>
-            <%= for block <- @chain.blocks do %>
-              <tr class="blocks__row">
-                <td class="blocks__column blocks__column--height">
-                  <%= link(
-                        block,
-                        class: "blocks__link",
-                        to: block_path(@conn, :show, @conn.assigns.locale, block)
-                      ) %>
-                </td>
-                <td class="blocks__column blocks__column--age"><%= block.timestamp |> Timex.from_now %></td>
-                <td class="blocks__column blocks__column--transactions-count">
-                  <%= block.transactions |> Enum.count %>
-                </td>
-                <td class="blocks__column blocks__column--gas-used"><%= block.gas_used |> Cldr.Number.to_string! %></td>
-              </tr>
-            <% end %>
-          </tbody>
-        </table>
-      </div>
+  <div class="row my-4">
+    <div class="col-md-6 mb-4 mb-md-0">
+      <%= render ExplorerWeb.ChainView, "_blocks.html", assigns %>
     </div>
-    <div class="transactions container__subsection">
-      <div class="transactions__container transactions__container__flex transactions__container--title">
-        <h2 class="transactions__title"><%= gettext "Transactions" %></h2>
-        <%= link to: transaction_path(@conn, :index, Gettext.get_locale), class: "header__link" do %>
-          <div class="button button--secondary button--xsmall u-float-right">View All</div>
-        <% end %>
-      </div>
-      <div class="transactions__container">
-        <table class="transactions__table">
-          <thead class="transactions__header">
-            <tr>
-              <th class="transactions__column-header"><%= gettext "Hash" %></th>
-              <th class="transactions__column-header"><%= gettext "Block" %></th>
-              <th class="transactions__column-header transactions__column-header--optional"><%= gettext "Age" %></th>
-              <th class="transactions__column-header"><%= gettext "Value" %></th>
-            </tr>
-          </thead>
-          <tbody>
-            <%= for transaction <- @chain.transactions do %>
-              <tr class="transactions__row">
-                <td class="transactions__column transactions__column--hash">
-                  <div class="transactions__hash-container" title="<%= transaction %>">
-                    <%= link(
-                          transaction,
-                          class: "transactions__link transactions__link--truncated transactions__link--hash",
-                          to: transaction_path(@conn, :show, @conn.assigns.locale, transaction)
-                        ) %>
-                  </div>
-                </td>
-                <td class="transactions__column transactions__column--block">
-                  <%= link(
-                        transaction.block,
-                        class: "transactions__link",
-                        to: block_path(@conn, :show, @conn.assigns.locale, transaction.block)
-                      ) %>
-                </td>
-                <td class="transactions__column transactions__column--age transactions__column--optional">
-                  <%= transaction.block.timestamp |> Timex.from_now() %>
-                </td>
-                <td class="transactions__column transactions__column--value">
-                  <%= ExplorerWeb.TransactionView.value(transaction) %>
-                </td>
-              </tr>
-            <% end %>
-          </tbody>
-        </table>
-      </div>
+    <div class="col-md-6">
+      <%= render ExplorerWeb.ChainView, "_transactions.html", assigns %>
     </div>
-  </section>
+  </div>
 </section>

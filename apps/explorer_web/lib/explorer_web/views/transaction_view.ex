@@ -3,15 +3,10 @@ defmodule ExplorerWeb.TransactionView do
 
   alias Cldr.Number
   alias Explorer.Chain
-  alias Explorer.Chain.{Address, Block, InternalTransaction, Transaction, Wei}
+  alias Explorer.Chain.{InternalTransaction, Receipt, Transaction, Wei}
+  alias Explorer.ExchangeRates.Token
   alias ExplorerWeb.BlockView
-
-  def block(%Transaction{block: block}) do
-    case block do
-      nil -> gettext("Pending")
-      _ -> to_string(block.number)
-    end
-  end
+  alias ExplorerWeb.ExchangeRates.USD
 
   def confirmations(%Transaction{block: block}, named_arguments) when is_list(named_arguments) do
     case block do
@@ -20,24 +15,35 @@ defmodule ExplorerWeb.TransactionView do
     end
   end
 
-  def cumulative_gas_used(%Transaction{block: block}) do
-    case block do
-      nil -> gettext("Pending")
-      %Block{gas_used: gas_used} -> Number.to_string!(gas_used)
+  def gas_used(%Transaction{receipt: nil}), do: gettext("Pending")
+
+  def gas_used(%Transaction{receipt: %Receipt{gas_used: gas_used}}) do
+    Number.to_string!(gas_used)
+  end
+
+  def formatted_fee(%Transaction{} = transaction, opts) do
+    transaction
+    |> Chain.fee(:wei)
+    |> fee_to_currency(opts)
+    |> case do
+      {_, nil} -> nil
+      {:actual, value} -> value
+      {:maximum, value} -> "<= " <> value
     end
   end
 
-  @doc """
-  Calculates the transaction fee and returns a formatted display value.
-  """
-  def fee(%Transaction{} = transaction) do
-    case Chain.fee(transaction, :wei) do
-      {:actual, actual} ->
-        format_wei_value(Wei.from(actual, :wei), :ether, fractional_digits: 18)
+  defp fee_to_currency({fee_type, fee}, denomination: denomination) do
+    {fee_type, format_wei_value(Wei.from(fee, :wei), denomination)}
+  end
 
-      {:maximum, maximum} ->
-        "<= " <> format_wei_value(Wei.from(maximum, :wei), :ether, fractional_digits: 18)
-    end
+  defp fee_to_currency({fee_type, fee}, exchange_rate: %Token{} = exchange_rate) do
+    formatted =
+      fee
+      |> Wei.from(:wei)
+      |> USD.from(exchange_rate)
+      |> format_usd_value()
+
+    {fee_type, formatted}
   end
 
   def first_seen(%Transaction{inserted_at: inserted_at}) do
@@ -46,6 +52,12 @@ defmodule ExplorerWeb.TransactionView do
 
   def format_gas_limit(gas) do
     Number.to_string!(gas)
+  end
+
+  def formatted_usd_value(%Transaction{value: nil}, _token), do: nil
+
+  def formatted_usd_value(%Transaction{value: value}, token) do
+    format_usd_value(USD.from(value, token))
   end
 
   def formatted_age(%Transaction{block: block}) do
@@ -60,10 +72,6 @@ defmodule ExplorerWeb.TransactionView do
       nil -> gettext("Pending")
       _ -> BlockView.formatted_timestamp(block)
     end
-  end
-
-  def from_address(%Transaction{from_address: %Address{hash: hash}}) do
-    to_string(hash)
   end
 
   defguardp is_transaction_type(mod) when mod in [InternalTransaction, Transaction]
@@ -102,19 +110,12 @@ defmodule ExplorerWeb.TransactionView do
     end
   end
 
-  def to_address(%Transaction{to_address: to_address}) do
-    case to_address do
-      nil -> "Contract Creation"
-      _ -> to_string(to_address)
-    end
-  end
-
   @doc """
   Converts a transaction's Wei value to Ether and returns a formatted display value.
 
   ## Options
 
-    * `:include_label` - Boolean. Defaults to true. Flag for displaying unit with value.
+  * `:include_label` - Boolean. Defaults to true. Flag for displaying unit with value.
   """
   def value(%mod{value: value}, opts \\ []) when is_transaction_type(mod) do
     include_label? = Keyword.get(opts, :include_label, true)

@@ -3,7 +3,7 @@ defmodule Explorer.ChainTest do
 
   import Explorer.Factory
 
-  alias Explorer.{Chain, Repo}
+  alias Explorer.{Chain, Repo, Factory}
   alias Explorer.Chain.{Address, Block, InternalTransaction, Log, Receipt, Transaction, Wei}
 
   doctest Explorer.Chain
@@ -483,7 +483,7 @@ defmodule Explorer.ChainTest do
       %InternalTransaction{id: second_id} =
         insert(:internal_transaction, index: 1, transaction_hash: transaction.hash, to_address_hash: address.hash)
 
-      result = address |> Chain.address_to_internal_transactions() |> Enum.map(fn it -> it.id end)
+      result = address |> Chain.address_to_internal_transactions() |> Enum.map(& &1.id)
       assert Enum.member?(result, first_id)
       assert Enum.member?(result, second_id)
     end
@@ -606,18 +606,36 @@ defmodule Explorer.ChainTest do
         address
         |> Chain.address_to_internal_transactions()
         |> Map.get(:entries, [])
-        |> Enum.map(fn internal_transaction -> internal_transaction.id end)
+        |> Enum.map(& &1.id)
 
       assert [second_pending, first_pending, sixth, fifth, fourth, third, second, first] == result
     end
 
-    test "Excludes internal transactions where they are alone in the parent transaction" do
+    test "Excludes internal transactions of type `call` when they are alone in the parent transaction" do
       address = insert(:address)
       block = insert(:block)
       transaction = insert(:transaction, block_hash: block.hash, index: 0, to_address_hash: address.hash)
-      insert(:internal_transaction, transaction_hash: transaction.hash, to_address_hash: address.hash)
+      insert(:internal_transaction_call, index: 0, to_address_hash: address.hash, transaction_hash: transaction.hash)
 
-      assert %{entries: []} = Chain.address_to_internal_transactions(address)
+      assert Enum.empty?(Chain.address_to_internal_transactions(address))
+    end
+
+    test "Includes internal transactions of type `create` even when they are alone in the parent transaction" do
+      address = insert(:address)
+      block = insert(:block)
+      transaction = insert(:transaction, block_hash: block.hash, index: 0, to_address_hash: address.hash)
+
+      expected =
+        insert(
+          :internal_transaction_create,
+          index: 0,
+          from_address_hash: address.hash,
+          transaction_hash: transaction.hash
+        )
+
+      actual = Enum.at(Chain.address_to_internal_transactions(address), 0)
+
+      assert actual.id == expected.id
     end
   end
 
@@ -644,7 +662,7 @@ defmodule Explorer.ChainTest do
         transaction.hash
         |> Chain.transaction_hash_to_internal_transactions()
         |> Map.get(:entries, [])
-        |> Enum.map(fn it -> it.id end)
+        |> Enum.map(& &1.id)
 
       assert 2 == length(results)
       assert Enum.member?(results, first.id)
@@ -653,8 +671,7 @@ defmodule Explorer.ChainTest do
 
     test "with transaction with internal transactions loads associations with in necessity_by_association" do
       %Transaction{hash: hash} = insert(:transaction)
-      insert(:internal_transaction, transaction_hash: hash, index: 0)
-      insert(:internal_transaction, transaction_hash: hash, index: 1)
+      insert(:internal_transaction_create, transaction_hash: hash, index: 0)
 
       assert [
                %InternalTransaction{
@@ -662,7 +679,6 @@ defmodule Explorer.ChainTest do
                  to_address: %Ecto.Association.NotLoaded{},
                  transaction: %Ecto.Association.NotLoaded{}
                }
-               | _
              ] = Chain.transaction_hash_to_internal_transactions(hash).entries
 
       assert [
@@ -671,7 +687,6 @@ defmodule Explorer.ChainTest do
                  to_address: nil,
                  transaction: %Transaction{}
                }
-               | _
              ] =
                Chain.transaction_hash_to_internal_transactions(
                  hash,
@@ -683,16 +698,24 @@ defmodule Explorer.ChainTest do
                ).entries
     end
 
-    test "excludes internal transaction with no siblings in the transaction" do
+    test "Excludes internal transactions of type call with no siblings in the transaction" do
       block = insert(:block)
       %Transaction{hash: hash} = insert(:transaction, block_hash: block.hash, index: 0)
-      insert(:internal_transaction, transaction_hash: hash)
+      insert(:internal_transaction_call, transaction_hash: hash, index: 0)
 
-      result =
-        hash
-        |> Chain.transaction_hash_to_internal_transactions()
+      result = Chain.transaction_hash_to_internal_transactions(hash)
 
-      assert %{entries: []} = result
+      assert Enum.empty?(result)
+    end
+
+    test "Includes internal transactions of type `create` even when they are alone in the parent transaction" do
+      block = insert(:block)
+      transaction = insert(:transaction, block_hash: block.hash, index: 0)
+      expected = insert(:internal_transaction_create, index: 0, transaction_hash: transaction.hash)
+
+      actual = Enum.at(Chain.transaction_hash_to_internal_transactions(transaction.hash), 0)
+
+      assert actual.id == expected.id
     end
 
     test "returns the internal transactions in index order" do
@@ -704,7 +727,7 @@ defmodule Explorer.ChainTest do
       result =
         hash
         |> Chain.transaction_hash_to_internal_transactions()
-        |> Enum.map(fn it -> it.id end)
+        |> Enum.map(& &1.id)
 
       assert [first_id, second_id] == result
     end
@@ -832,6 +855,73 @@ defmodule Explorer.ChainTest do
     test "with Transaction.t with :ether" do
       assert Chain.value(%Transaction{value: %Wei{value: Decimal.new(1)}}, :ether) == Decimal.new("1e-18")
       assert Chain.value(%Transaction{value: %Wei{value: Decimal.new("1e18")}}, :ether) == Decimal.new(1)
+    end
+  end
+
+  describe "find_contract_address/1" do
+    test "doesn't find an address that doesn't have a code" do
+      address = insert(:address, contract_code: nil)
+
+      response = Chain.find_contract_address(address.hash)
+
+      assert {:error, :not_found} == response
+    end
+
+    test "doesn't find a unexistent address" do
+      unexistent_address_hash = Factory.address_hash()
+
+      response = Chain.find_contract_address(unexistent_address_hash)
+
+      assert {:error, :not_found} == response
+    end
+
+    test "finds an contract address" do
+      address = insert(:address, contract_code: Factory.data("contract_code"))
+
+      response = Chain.find_contract_address(address.hash)
+
+      assert response == {:ok, address}
+    end
+  end
+
+  describe "block_reward/1" do
+    setup do
+      %{block_range: range} = block_reward = insert(:block_reward)
+
+      block = insert(:block, number: Enum.random(Range.new(range.from, range.to)))
+      insert(:transaction)
+
+      {:ok, block: block, block_reward: block_reward}
+    end
+
+    test "with block containing transactions", %{block: block, block_reward: block_reward} do
+      insert(
+        :transaction,
+        block: block,
+        index: 0,
+        gas_price: 1,
+        receipt: build(:receipt, gas_used: 1, transaction_index: 0)
+      )
+
+      insert(
+        :transaction,
+        block: block,
+        index: 1,
+        gas_price: 1,
+        receipt: build(:receipt, gas_used: 2, transaction_index: 1)
+      )
+
+      expected =
+        block_reward.reward
+        |> Wei.to(:wei)
+        |> Decimal.add(Decimal.new(3))
+        |> Wei.from(:wei)
+
+      assert expected == Chain.block_reward(block)
+    end
+
+    test "with block without transactions", %{block: block, block_reward: block_reward} do
+      assert block_reward.reward == Chain.block_reward(block)
     end
   end
 end

@@ -1,11 +1,9 @@
 defmodule ExplorerWeb.AddressTransactionView do
   use ExplorerWeb, :view
 
-  alias ExplorerWeb.TransactionView
+  import ExplorerWeb.AddressView, only: [contract?: 1]
 
-  defdelegate block(transaction), to: TransactionView
-  defdelegate from_address(transaction), to: TransactionView
-  defdelegate hash(transaction), to: TransactionView
+  alias ExplorerWeb.TransactionView
 
   def format_current_filter(filter) do
     case filter do
@@ -16,5 +14,4 @@ defmodule ExplorerWeb.AddressTransactionView do
   end
 
   defdelegate status(transaction), to: TransactionView
-  defdelegate to_address(transaction), to: TransactionView
 end

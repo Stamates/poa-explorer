@@ -1,0 +1,72 @@
+<section class="container-fluid">
+
+  <%= render ExplorerWeb.TransactionView, "overview.html", assigns %>
+
+  <section>
+    <div class="card">
+      <div class="card-header">
+        <ul class="nav nav-tabs card-header-tabs">
+          <li class="nav-item">
+            <%= link(
+                  gettext("Internal Transactions"),
+                  class: "nav-link active",
+                  to: transaction_path(@conn, :show, @conn.assigns.locale, @transaction)
+                ) %>
+          </li>
+          <li class="nav-item">
+            <%= link(
+                  gettext("Logs"),
+                  class: "nav-link",
+                  to: transaction_log_path(@conn, :index, @conn.assigns.locale, @transaction),
+                  "data-test": "transaction_logs_link"
+                ) %>
+          </li>
+        </ul>
+      </div>
+      <div class="card-body">
+        <%= if Enum.count(@page) > 0 do %>
+          <table class="table table-responsive-sm table-font">
+            <thead>
+              <th><%= gettext "Type" %></th>
+              <th><%= gettext "From" %></th>
+              <th><%= gettext "To" %></th>
+              <th><%= gettext "Value" %> (<%= gettext "Ether" %>)</th>
+              <th><%= gettext "Gas Limit" %> (<%= gettext "Gas" %>)</th>
+            </thead>
+            <%= for internal_transaction <- @page do %>
+              <tgroup>
+                <tr>
+                  <td><%= internal_transaction.call_type %></td>
+                  <td>
+                    <%= render ExplorerWeb.AddressView, "_link.html", conn: @conn, address: internal_transaction.from_address %>
+                  </td>
+                  <td>
+                    <%= render ExplorerWeb.AddressView, "_link.html", conn: @conn, address: internal_transaction.to_address %>
+                  </td>
+                  <td><%= ExplorerWeb.TransactionView.value(internal_transaction, include_label: false) %></td>
+                  <td><%= ExplorerWeb.TransactionView.gas(internal_transaction) %></td>
+                </tr>
+              </tgroup>
+            <% end %>
+          </table>
+        <% else %>
+          <p><%= gettext "There are no Internal Transactions" %></p>
+        <% end %>
+      </div>
+    </div>
+
+    <div class="address__pagination">
+      <%= pagination_links(
+        @conn,
+        @page,
+        ["en", @conn.params["transaction_id"]],
+        distance: 1,
+        first: true,
+        next: Phoenix.HTML.raw("&rsaquo;"),
+        path: &transaction_internal_transaction_path/5,
+        previous: Phoenix.HTML.raw("&lsaquo;"),
+        view_style: :bulma
+      ) %>
+    </div>
+  </section>
+</section>
